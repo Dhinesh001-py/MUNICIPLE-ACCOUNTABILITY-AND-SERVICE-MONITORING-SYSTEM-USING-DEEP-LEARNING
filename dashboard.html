@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Complaint Dashboard</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body { background-color: #f8f9fa; }
+    .navbar { background: linear-gradient(90deg, #007bff, #0056b3); }
+    .navbar-brand, .nav-link, .navbar-text { color: white !important; }
+    .card { border-radius: 12px; }
+
+    .table thead { 
+      background-color: #343a40; 
+      color: white; 
+      position: sticky; 
+      top: 0; 
+      z-index: 2; 
+    }
+
+    .img-thumbnail { width: 100px; height: auto; object-fit: cover; }
+    .description-col { max-width: 300px; white-space: normal; word-break: break-word; }
+
+    .priority-badge-high { background:#dc3545; color:white; }
+    .priority-badge-medium { background:#ffc107; color:#212529; }
+    .priority-badge-low { background:#28a745; color:white; }
+
+    /* ⭐ Charts */
+    #categoryChart, #locationChart, #monthChart {
+        height: 260px !important;
+    }
+
+    /* ⭐ Reduced Pie Chart Size */
+    #statusChart {
+        max-width: 220px !important;
+        max-height: 220px !important;
+        margin: auto;
+        display: block;
+    }
+  </style>
+</head>
+
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold">Municipal Complaint Dashboard</a>
+    <div class="d-flex">
+      <a href="{{ url_for('index') }}" class="btn btn-light btn-sm me-2">+ Add Complaint</a>
+      <a href="{{ url_for('download') }}" class="btn btn-success btn-sm">⬇ Download Excel</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-4">
+
+  <!-- ===== Summary Cards ===== -->
+  <div class="row text-center mb-4">
+    <div class="col-md-3 mb-3">
+      <div class="card p-3">
+        <h6>Total Complaints</h6>
+        <h2 id="totalCount">0</h2>
+      </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+      <div class="card p-3">
+        <h6>New</h6>
+        <h2 id="newCount">0</h2>
+      </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+      <div class="card p-3">
+        <h6>In Progress</h6>
+        <h2 id="progressCount">0</h2>
+      </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+      <div class="card p-3">
+        <h6>Resolved</h6>
+        <h2 id="resolvedCount">0</h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Charts Row 1 ===== -->
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-4">
+      <div class="card p-3">
+        <h5 class="text-center fw-bold">Complaints by Category</h5>
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+      <div class="card p-3">
+        <h5 class="text-center fw-bold">Complaint Status Distribution</h5>
+        <canvas id="statusChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Charts Row 2 ===== -->
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-4">
+      <div class="card p-3">
+        <h5 class="text-center fw-bold">Complaints by Location</h5>
+        <canvas id="locationChart"></canvas>
+      </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+      <div class="card p-3">
+        <h5 class="text-center fw-bold">Monthly Complaint Trend</h5>
+        <canvas id="monthChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Table ===== -->
+  <div class="card p-3">
+    <div class="table-responsive">
+      <table class="table table-hover table-bordered align-middle" id="complaintsTable">
+        <thead>
+          <tr class="text-center">
+            <th>ID</th>
+            <th>Name</th>
+            <th>Address</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Image</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Created At</th>
+          </tr>
+        </thead>
+
+        <tbody id="tableBody">
+          {% for row in rows %}
+          <tr data-id="{{ row.id }}" data-category="{{ row.category }}" data-priority="{{ row.priority }}">
+            <td class="text-center">{{ row.id }}</td>
+            <td>{{ row.name }}</td>
+
+            <!-- ⭐ CLICKABLE GOOGLE MAPS ADDRESS -->
+            <td>
+              <a href="https://www.google.com/maps/search/?api=1&query={{ row.address | urlencode }}"
+                 target="_blank"
+                 class="text-primary text-decoration-underline fw-bold">
+                 {{ row.address }}
+              </a>
+            </td>
+
+            <td class="text-center">
+              <span class="badge bg-secondary">{{ row.category }}</span>
+            </td>
+
+            <td class="description-col">{{ row.description }}</td>
+
+            <td class="text-center">
+              {% if row.image_url %}
+                <img src="{{ row.image_url }}" class="img-thumbnail">
+              {% else %}
+                <span class="text-muted fst-italic">No Image</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              {% if row.priority == 'High' %}
+                <span class="badge priority-badge-high">High</span>
+              {% elif row.priority == 'Medium' %}
+                <span class="badge priority-badge-medium">Medium</span>
+              {% else %}
+                <span class="badge priority-badge-low">Low</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              <select class="form-select form-select-sm"
+                      onchange="onStatusChange(event, {{ row.id }})">
+                <option value="New" {% if row.status=='New' %}selected{% endif %}>New</option>
+                <option value="In Progress" {% if row.status=='In Progress' %}selected{% endif %}>In Progress</option>
+                <option value="Resolved" {% if row.status=='Resolved' %}selected{% endif %}>Resolved</option>
+              </select>
+            </td>
+
+            <td class="text-center">{{ row.created_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================== CHART JS ===================== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const complaints = {{ rows|tojson }};
+
+/* ------------------ PRIORITY SORTING ------------------ */
+const priorityRank = {
+    "Women Safety": 1,
+    "Water Supply": 2,
+    "High": 3,
+    "Medium": 4,
+    "Low": 5
+};
+
+function sortTableByPriority() {
+    let tbody = document.getElementById("tableBody");
+    let rows = Array.from(tbody.querySelectorAll("tr"));
+
+    rows.sort((a, b) => {
+        let catA = a.dataset.category;
+        let prA = a.dataset.priority;
+
+        let catB = b.dataset.category;
+        let prB = b.dataset.priority;
+
+        let rankA = priorityRank[catA] || priorityRank[prA];
+        let rankB = priorityRank[catB] || priorityRank[prB];
+
+        return rankA - rankB;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+}
+
+sortTableByPriority();
+
+/* ------------------ HELPER: Extract District ------------------ */
+/*
+ Strategy:
+ 1. Split address by commas into parts and trim.
+ 2. If a part contains 'tamil nadu' (case-insensitive), choose the part immediately before it (that's usually district).
+ 3. Otherwise iterate from the end and pick the first part that:
+    - contains letters
+    - is longer than 2 characters
+    - does not look like a house number (doesn't start with digit)
+ This handles addresses like "20.a, Valaiyal kara Street, Mathalangulam, Tiruvannamalai, Tamil Nadu 606601"
+*/
+function extractDistrict(address) {
+    if (!address) return "Unknown";
+
+    // split and trim
+    let parts = address.split(",").map(p => p.trim()).filter(p => p.length > 0);
+    if (parts.length === 0) return "Unknown";
+
+    // find 'tamil nadu' index
+    let tnIndex = -1;
+    for (let i = 0; i < parts.length; i++) {
+        if (parts[i].toLowerCase().includes("tamil nadu")) {
+            tnIndex = i;
+            break;
+        }
+    }
+    if (tnIndex > 0) {
+        // choose part before 'Tamil Nadu'
+        return parts[tnIndex - 1];
+    }
+
+    // otherwise, pick last meaningful part (skip purely numeric or short tokens)
+    for (let i = parts.length - 1; i >= 0; i--) {
+        let p = parts[i];
+        if (p.length <= 2) continue;
+        // skip if starts with digit (house numbers)
+        if (/^\d/.test(p)) continue;
+        // skip generic words
+        if (/^(street|st|road|rd|village|taluk|town|pincode|pin|ward|block)$/i.test(p.trim())) continue;
+        // looks good
+        return p;
+    }
+
+    // fallback to first part trimmed
+    return parts[0];
+}
+
+/* ------------------ COUNT COMPUTATION (uses extractDistrict) ------------------ */
+function computeCounts() {
+    const categoryCounts = {};
+    const statusCounts = {};
+    const monthCounts = {};
+    const locationCounts = {};
+
+    let newC = 0, progressC = 0, resolvedC = 0;
+
+    complaints.forEach(c => {
+        categoryCounts[c.category] = (categoryCounts[c.category] || 0) + 1;
+
+        // extract district properly
+        const district = extractDistrict(c.address);
+        locationCounts[district] = (locationCounts[district] || 0) + 1;
+
+        statusCounts[c.status] = (statusCounts[c.status] || 0) + 1;
+
+        if (c.status === "New") newC++;
+        if (c.status === "In Progress") progressC++;
+        if (c.status === "Resolved") resolvedC++;
+
+        const d = new Date(c.created_at);
+        const month = d.toLocaleString('default', { month: 'short' });
+        monthCounts[month] = (monthCounts[month] || 0) + 1;
+    });
+
+    document.getElementById("totalCount").innerHTML = complaints.length;
+    document.getElementById("newCount").innerHTML = newC;
+    document.getElementById("progressCount").innerHTML = progressC;
+    document.getElementById("resolvedCount").innerHTML = resolvedC;
+
+    return { categoryCounts, statusCounts, locationCounts, monthCounts };
+}
+
+const counts = computeCounts();
+
+/* ------------------ CATEGORY CHART ------------------ */
+new Chart(document.getElementById("categoryChart"), {
+    type: "bar",
+    data: {
+        labels: Object.keys(counts.categoryCounts),
+        datasets: [{
+            label: "Complaints",
+            data: Object.values(counts.categoryCounts)
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+});
+
+/* ------------------ STATUS PIE CHART ------------------ */
+new Chart(document.getElementById("statusChart"), {
+    type: "pie",
+    data: {
+        labels: Object.keys(counts.statusCounts),
+        datasets: [{ data: Object.values(counts.statusCounts) }]
+    },
+    options: {
+        aspectRatio: 1,
+        plugins: { legend: { position: "bottom" } }
+    }
+});
+
+/* ------------------ LOCATION CHART ------------------ */
+new Chart(document.getElementById("locationChart"), {
+    type: "bar",
+    data: {
+        labels: Object.keys(counts.locationCounts),
+        datasets: [{
+            label: "Complaints",
+            data: Object.values(counts.locationCounts),
+            backgroundColor: "rgba(54, 162, 235, 0.6)"
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                ticks: {
+                    autoSkip: false,
+                    maxRotation: 20,
+                    minRotation: 20,
+                    // shorten long labels visually
+                    callback: function(value) {
+                        const label = this.getLabelForValue(value) || "";
+                        return label.length > 18 ? label.substring(0,18) + "..." : label;
+                    },
+                    font: { size: 11 }
+                }
+            },
+            y: {
+                beginAtZero: true
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    // show full district name in tooltip
+                    title: function(ctx) {
+                        const idx = ctx[0].dataIndex;
+                        const labels = Object.keys(counts.locationCounts);
+                        return labels[idx];
+                    }
+                }
+            },
+            legend: { display: false }
+        }
+    }
+});
+
+/* ------------------ MONTH TREND CHART ------------------ */
+new Chart(document.getElementById("monthChart"), {
+    type: "line",
+    data: {
+        labels: Object.keys(counts.monthCounts),
+        datasets: [{
+            label: "Complaints",
+            data: Object.values(counts.monthCounts),
+            fill: false,
+            borderColor: "#007bff",
+            tension: 0.3
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+});
+
+/* ------------------ AJAX STATUS UPDATE ------------------ */
+function onStatusChange(e, id) {
+    fetch("{{ url_for('api_update_status') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id, status: e.target.value })
+    })
+    .then(r => r.json())
+    .then(resp => {
+        if (resp.success) {
+            // recompute counts and update charts if needed (simple page reload recommended)
+            location.reload();
+        } else {
+            alert("Status update failed");
+        }
+    });
+}
+</script>
+
+</body>
+</html>
